@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cryptocurrency Price Search</title>
+
+    <!-- Google Fonts for fancier typography -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&family=Raleway:wght@400;600&display=swap">
+
+    <!-- Bootstrap -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0/dist/css/bootstrap.min.css">
+
+    <style>
+        body {
+            background-color: #f0f8ff; /* Lighter blue */
+            font-family: 'Montserrat', sans-serif;
+            text-align: center; /* Center all text by default */
+        }
+        h1, h2 {
+            font-family: 'Raleway', sans-serif;
+            font-weight: 700;
+            color: #2c3e50; /* Darker blue for headers */
+        }
+        .navbar {
+            background-color: #004080; /* Darker navy blue */
+        }
+        .navbar-brand {
+            color: #fff;
+            font-weight: bold;
+            font-size: 1.5rem;
+        }
+        .navbar-brand:hover {
+            color: #f0f8ff;
+        }
+        .search-container {
+            margin-top: 70px;
+        }
+        .input-group {
+            max-width: 500px;
+            margin: 0 auto;
+        }
+        .btn-primary {
+            background-color: #3498db;
+            border: none;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        .btn-primary:hover {
+            background-color: #2980b9;
+        }
+        .loading, .error {
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+        .coin-info {
+            margin-top: 40px;
+            font-size: 1.2rem;
+        }
+        .coin-info h2 {
+            font-size: 2rem;
+            margin-bottom: 20px;
+        }
+        .coin-info p {
+            margin: 10px 0;
+            color: #34495e;
+        }
+        .chart-container {
+            margin-top: 40px;
+        }
+        canvas {
+            background-color: transparent;
+        }
+        .news-container h2 {
+            font-size: 1.8rem;
+            margin-bottom: 20px;
+        }
+        .news-item h3 {
+            font-size: 1.4rem;
+            color: #2c3e50;
+        }
+        .news-item p {
+            color: #555;
+        }
+        .footer {
+            background-color: #2c3e50;
+            color: #fff;
+            padding: 30px 0;
+            margin-top: 50px;
+            font-size: 1.1rem;
+        }
+        .footer p {
+            margin: 0;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">Crypto Price Search</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="search-container">
+            <div class="input-group mb-3">
+                <input type="text" id="coin-input" class="form-control" placeholder="Enter cryptocurrency (e.g., Bitcoin)">
+                <button id="search-btn" class="btn btn-primary">Search</button>
+            </div>
+        </div>
+
+        <div class="loading" style="display: none;">Loading...</div>
+        <div class="error" style="display: none;"></div>
+
+        <div class="row">
+            <div class="col-md-6 offset-md-3">
+                <div class="coin-info" style="display: none;">
+                    <h2 id="coin-name"></h2>
+                    <p id="coin-price"></p>
+                    <p id="coin-change"></p>
+                    <p id="coin-market-cap"></p>
+                    <p id="coin-volume"></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-8 offset-md-2">
+                <div class="chart-container" style="display: none;">
+                    <canvas id="price-chart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="news-container" style="display: none;">
+            <h2>Latest News</h2>
+            <div id="news-list"></div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2023 Crypto Price Search. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        let chart;
+
+        $(document).ready(function() {
+            $('#search-btn').on('click', function() {
+                var coinName = $('#coin-input').val();
+                $('.loading').show();
+                $('.error').hide();
+                $('.coin-info').hide();
+                $('.chart-container').hide();
+                $('.news-container').hide();
+
+                $.ajax({
+                    url: "/search",
+                    type: "GET",
+                    data: { coin_name: coinName },
+                    success: function(response) {
+                        $('.loading').hide();
+
+                        if (response.error) {
+                            $('.error').text("Error: " + response.error).show();
+                        } else {
+                            $('#coin-name').text(response.coin);
+                            $('#coin-price').text("Price: $" + response.price);
+
+                            const change = response.price_change_percentage_7d.toFixed(2);
+                            $('#coin-change').text("Change (7d): " + change + "%");
+
+                            $('#coin-market-cap').text("Market Cap: $" + response.market_cap);
+                            $('#coin-volume').text("Volume (24h): $" + response.volume_24h);
+
+                            const prices = response.historical_data.prices.map(item => item[1]);
+                            const labels = response.historical_data.prices.map(item => new Date(item[0]).toLocaleDateString());
+
+                            const data = {
+                                labels: labels,
+                                datasets: [{
+                                    label: response.coin + " Price",
+                                    data: prices,
+                                    fill: false,
+                                    borderColor: change >= 0 ? 'green' : 'red',
+                                    tension: 0.1
+                                }]
+                            };
+
+                            const config = {
+                                type: 'line',
+                                data: data,
+                                options: {
+                                    scales: {
+                                        y: {
+                                            beginAtZero: false
+                                        }
+                                    }
+                                }
+                            };
+
+                            if (chart) chart.destroy();
+
+                            chart = new Chart(
+                                document.getElementById('price-chart'),
+                                config
+                            );
+
+                            $('.coin-info').show();
+                            $('.chart-container').show();
+
+                            // Fetch and display news articles
+                            $.ajax({
+                                url: "/news",
+                                type: "GET",
+                                data: { coin_name: coinName },
+                                success: function(newsResponse) {
+                                    if (newsResponse.articles && newsResponse.articles.length > 0) {
+                                        var newsHtml = '';
+                                        newsResponse.articles.forEach(function(article) {
+                                            newsHtml += '<div class="news-item">';
+                                            newsHtml += '<h3>' + article.title + '</h3>';
+                                            newsHtml += '<p>' + article.description + '</p>';
+                                            newsHtml += '<a href="' + article.url + '" target="_blank">Read More</a>';
+                                            newsHtml += '</div>';
+                                        });
+                                        $('#news-list').html(newsHtml);
+                                        $('.news-container').show();
+                                    }
+                                },
+                                error: function(error) {
+                                    console.log("Error fetching news:", error);
+                                }
+                            });
+                        }
+                    },
+                    error: function(error) {
+                        $('.loading').hide();
+                        $('.error').text("Error fetching price.").show();
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

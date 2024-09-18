@@ -1,4 +1,4 @@
-Crypto Coin Searcher:
+Crypto Coin Searcher
 
 Searches any coin and produces the latest statistics from it's past week's performance
 
